@@ -4,10 +4,17 @@
 """
 from datetime import date
 
+from common import fetch_csv
+
 
 def ingest_bronze(day: date = None, init: bool = False):
-    # TODO : télécharger le fichier bookings du jour (ou de init/) vers bronze/.
-    raise NotImplementedError
+    """Conserve le fichier brut des réservations initiales ou du jour."""
+    if init:
+        fetch_csv("init", "bookings.csv")
+    elif day is not None:
+        fetch_csv("2025-09", f"bookings_{day.isoformat()}.csv")
+    else:
+        raise ValueError("Une date est nécessaire hors initialisation.")
 
 
 def create_silver_table(con):

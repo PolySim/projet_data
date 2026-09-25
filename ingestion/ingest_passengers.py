@@ -4,10 +4,18 @@
 """
 from datetime import date
 
+from common import fetch_csv
+
 
 def ingest_bronze(day: date = None, init: bool = False):
-    # TODO : télécharger les deux snapshots (EN et FR) du jour (ou de init/) vers bronze/.
-    raise NotImplementedError
+    """Conserve séparément les snapshots EN et FR dans leur format source."""
+    if not init and day is None:
+        raise ValueError("Une date est nécessaire hors initialisation.")
+    for language in ("en", "fr"):
+        if init:
+            fetch_csv("init", f"passengers_{language}.csv")
+        else:
+            fetch_csv("2025-09", f"passengers_{language}_{day.isoformat()}.csv")
 
 
 def create_silver_table(con):

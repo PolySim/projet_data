@@ -10,6 +10,7 @@ besoin que le silver/gold des vols du même jour soit déjà à jour (cohérence
 l'aéroport de départ du vol réservé). C'est exactement le genre de dépendance qu'un orchestrateur
 comme Dagster gère pour vous (cf. section Bonus du README).
 """
+import argparse
 import os
 from datetime import date, timedelta
 
@@ -32,15 +33,17 @@ def init_dim_currency():
     con.close()
 
 
-def run():
-    init_dim_currency()
+def run(bronze_only: bool = False):
+    if not bronze_only:
+        init_dim_currency()
 
     for entity in ENTITIES:
         entity.ingest_bronze(init=True)
-    for entity in ENTITIES:
-        entity.ingest_silver(init=True)
-    for entity in ENTITIES:
-        entity.ingest_gold()
+    if not bronze_only:
+        for entity in ENTITIES:
+            entity.ingest_silver(init=True)
+        for entity in ENTITIES:
+            entity.ingest_gold()
     print("Init ingérée.")
 
     for i in range(N_DAYS):
@@ -48,13 +51,19 @@ def run():
 
         for entity in ENTITIES:
             entity.ingest_bronze(day)
-        for entity in ENTITIES:
-            entity.ingest_silver(day)
-        for entity in ENTITIES:
-            entity.ingest_gold()
+        if not bronze_only:
+            for entity in ENTITIES:
+                entity.ingest_silver(day)
+            for entity in ENTITIES:
+                entity.ingest_gold()
 
         print(f"{day.isoformat()} ingéré.")
 
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser(description="Ingestion du mois de septembre 2025.")
+    parser.add_argument(
+        "--bronze-only", action="store_true", help="Télécharger uniquement les CSV bruts."
+    )
+    args = parser.parse_args()
+    run(bronze_only=args.bronze_only)

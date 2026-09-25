@@ -1,9 +1,7 @@
 """
 Exemple pour l'entité `airports` (la dimension la plus stable du jeu de données) : `ingest_silver`
-et `ingest_gold` sont complets, sert de modèle pour les 3 scripts restants. `ingest_bronze` (et
-`fetch_csv` dans `common.py`, dont elle dépend) sont à votre charge ici aussi — même sur cet
-exemple : c'est simple, mais ça vaut le coup de l'écrire et de la comprendre vous-même plutôt que
-de partir d'une ingestion déjà faite.
+et `ingest_gold` sont fournis comme modèle pour les 3 scripts restants.
+`ingest_bronze` télécharge le fichier brut via le cache local partagé.
 
 Découpé en 3 fonctions correspondant aux 3 couches du médaillon — un peu comme 3 tâches
 distinctes qu'exécuterait un pipeline orchestré (cf. bonus Dagster) : chaque fonction relit ce
@@ -20,14 +18,15 @@ AIRPORT_COLS = ["iata_code", "airport_name", "city", "country"]
 def _snapshot_file(day: date = None, init: bool = False):
     if init:
         return "init", "airports.csv"
-    assert day is not None
+    if day is None:
+        raise ValueError("Une date est nécessaire hors initialisation.")
     return "2025-09", f"airports_{day.isoformat()}.csv"
 
 
 def ingest_bronze(day: date = None, init: bool = False):
-    # TODO : Doit télécharger le snapshot du jour vers bronze/ (ou vers init/).
-    # utiliser fetch_csv() de common.py (à implémenter aussi) pour rapatrier la données.
-    raise NotImplementedError
+    """Conserve le snapshot brut dans bronze/init ou bronze/2025-09."""
+    subdir, filename = _snapshot_file(day, init)
+    fetch_csv(subdir, filename)
 
 
 def create_silver_table(con):

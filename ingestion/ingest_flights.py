@@ -4,10 +4,17 @@
 """
 from datetime import date
 
+from common import fetch_csv
+
 
 def ingest_bronze(day: date = None, init: bool = False):
-    # TODO : télécharger le snapshot flights du jour (ou de init/) vers bronze/.
-    raise NotImplementedError
+    """Conserve le snapshot brut des vols, sans transformation."""
+    if init:
+        fetch_csv("init", "flights.csv")
+    elif day is not None:
+        fetch_csv("2025-09", f"flights_{day.isoformat()}.csv")
+    else:
+        raise ValueError("Une date est nécessaire hors initialisation.")
 
 
 def create_silver_table(con):

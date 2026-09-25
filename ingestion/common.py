@@ -1,8 +1,12 @@
 """
-Utilitaires partagés par les scripts d'ingestion. `get_connection` est fourni tel quel ;
-`fetch_csv` est à vous d'implémenter (cf. TODO)
+Utilitaires partagés : téléchargement brut avec cache local et connexion DuckDB.
 """
+
 import os
+import shutil
+import tempfile
+from pathlib import Path
+from urllib.request import urlopen
 
 import duckdb
 import pandas as pd
@@ -14,12 +18,24 @@ RAW_BASE = "https://raw.githubusercontent.com/kevinl75/tp-polytech-dataset/main"
 
 
 def fetch_csv(subdir: str, filename: str) -> pd.DataFrame:
-    """Doit renvoyer le contenu de <subdir>/<filename> sous forme de DataFrame pandas."""
-    # TODO : le fichier CSV source est disponible à l'URL f"{RAW_BASE}/{subdir}/{filename}".
-    # - S'il n'existe pas déjà en local dans BRONZE_DIR/<subdir>/<filename>, téléchargez-le et
-    #   écrivez-le tel quel sur disque à cet emplacement (créez les dossiers nécessaires).
-    # - Eviter si possible de le retéléchargez s'il est déjà présent.
-    raise NotImplementedError
+    """Conserve le CSV brut si nécessaire, puis le lit depuis le disque."""
+    path = Path(BRONZE_DIR) / subdir / filename
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = None
+        try:
+            with urlopen(f"{RAW_BASE}/{subdir}/{filename}", timeout=30) as response:
+                with tempfile.NamedTemporaryFile(
+                    dir=path.parent, suffix=".tmp", delete=False
+                ) as temporary_file:
+                    temporary_path = Path(temporary_file.name)
+                    shutil.copyfileobj(response, temporary_file)
+            os.replace(temporary_path, path)
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+
+    return pd.read_csv(path)
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:
