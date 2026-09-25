@@ -40,3 +40,22 @@ def fetch_csv(subdir: str, filename: str) -> pd.DataFrame:
 
 def get_connection() -> duckdb.DuckDBPyConnection:
     return duckdb.connect(DB_PATH)
+
+
+def read_bronze_csv(entity: str, day=None, init: bool = False) -> pd.DataFrame:
+    """Lit uniquement Bronze ; une source absente doit d'abord être ingérée."""
+    if init:
+        path = Path(BRONZE_DIR) / "init" / f"{entity}.csv"
+    elif day is not None:
+        path = Path(BRONZE_DIR) / "2025-09" / f"{entity}_{day.isoformat()}.csv"
+    else:
+        raise ValueError("Une date est nécessaire hors initialisation.")
+    return pd.read_csv(path, dtype=str)
+
+
+def validate_key(df: pd.DataFrame, key: str):
+    """Refuse un snapshot ambigu avant toute modification de l'entrepôt."""
+    if df[key].isna().any() or df[key].str.strip().eq("").any():
+        raise ValueError(f"La clé {key} contient des valeurs absentes.")
+    if df[key].duplicated().any():
+        raise ValueError(f"La clé {key} contient des doublons.")

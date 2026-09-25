@@ -8,14 +8,15 @@ distinctes qu'exécuterait un pipeline orchestré (cf. bonus Dagster) : chaque f
 que la précédente a persisté (fichier bronze, puis table silver), elle ne reçoit jamais rien
 directement d'un objet Python de l'étape d'avant.
 """
+
 from datetime import date
 
-from common import fetch_csv, get_connection
+from common import fetch_csv, get_connection, read_bronze_csv, validate_key
 
 AIRPORT_COLS = ["iata_code", "airport_name", "city", "country"]
 
 
-def _snapshot_file(day: date = None, init: bool = False):
+def _snapshot_file(day: date | None = None, init: bool = False):
     if init:
         return "init", "airports.csv"
     if day is None:
@@ -23,7 +24,7 @@ def _snapshot_file(day: date = None, init: bool = False):
     return "2025-09", f"airports_{day.isoformat()}.csv"
 
 
-def ingest_bronze(day: date = None, init: bool = False):
+def ingest_bronze(day: date | None = None, init: bool = False):
     """Conserve le snapshot brut dans bronze/init ou bronze/2025-09."""
     subdir, filename = _snapshot_file(day, init)
     fetch_csv(subdir, filename)
@@ -51,10 +52,10 @@ def create_silver_table(con):
     """)
 
 
-def ingest_silver(day: date = None, init: bool = False):
+def ingest_silver(day: date | None = None, init: bool = False):
     """Relit le snapshot depuis bronze/ et l'upsert dans silver_airports."""
-    subdir, filename = _snapshot_file(day, init)
-    df = fetch_csv(subdir, filename)  # déjà en cache local : pas de nouveau téléchargement
+    df = read_bronze_csv("airports", day, init)
+    validate_key(df, "airport_id")
     snapshot_date = date(2025, 8, 31) if init else day
 
     df = df.copy()
