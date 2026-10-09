@@ -36,11 +36,17 @@ def init_dim_currency():
     con.close()
 
 
-def run(bronze_only: bool = False, silver_only: bool = False):
-    if bronze_only and silver_only:
+def run(bronze_only: bool = False, silver_only: bool = False, gold_only: bool = False):
+    if sum((bronze_only, silver_only, gold_only)) > 1:
         raise ValueError("Choisir une seule couche à exécuter.")
     if not bronze_only and not silver_only:
         init_dim_currency()
+
+    if gold_only:
+        for entity in ENTITIES:
+            entity.ingest_gold()
+        print("Gold reconstruit depuis Silver.")
+        return
 
     if not silver_only:
         for entity in ENTITIES:
@@ -82,5 +88,10 @@ if __name__ == "__main__":
         action="store_true",
         help="Charger uniquement Silver depuis les CSV Bronze locaux.",
     )
+    layers.add_argument(
+        "--gold-only",
+        action="store_true",
+        help="Reconstruire uniquement Gold depuis les tables Silver actuelles.",
+    )
     args = parser.parse_args()
-    run(bronze_only=args.bronze_only, silver_only=args.silver_only)
+    run(bronze_only=args.bronze_only, silver_only=args.silver_only, gold_only=args.gold_only)

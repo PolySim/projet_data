@@ -9,7 +9,9 @@
 
 CREATE TABLE IF NOT EXISTS dim_currency (
     currency VARCHAR PRIMARY KEY,
-    rate_to_eur DOUBLE
+    rate_to_eur DOUBLE,
+    insert_timestamp TIMESTAMP DEFAULT now(),
+    update_timestamp TIMESTAMP DEFAULT now()
 );
 
 INSERT INTO dim_currency (currency, rate_to_eur) VALUES

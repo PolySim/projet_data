@@ -1,5 +1,5 @@
 """
-Ingestion de l'entité `flights` ; la couche Gold reste à compléter
+Ingestion de l'entité `flights` en Bronze, Silver et Gold
 (même structure que `ingest_airports.py`, à utiliser comme modèle).
 """
 
@@ -95,8 +95,18 @@ def ingest_silver(day: date = None, init: bool = False):
 
 
 def ingest_gold():
-    # TODO : reconstruire la/les table(s) de gold avec les données flights à partir de silver_flights
-    raise NotImplementedError
+    """Conserve tous les vols et calcule leur durée, y compris après minuit."""
+    con = get_connection()
+    try:
+        con.execute("""
+            CREATE OR REPLACE TABLE dim_flight AS
+            SELECT *,
+                   CAST((date_diff('minute', departure_time, arrival_time) + 1440)
+                        % 1440 AS INTEGER) AS duration_minutes
+            FROM silver_flights
+        """)
+    finally:
+        con.close()
 
 
 def init():

@@ -1,5 +1,5 @@
 """
-Ingestion de l'entité `passengers` ; la couche Gold reste à compléter
+Ingestion de l'entité `passengers` en Bronze, Silver et Gold
 (même structure que `ingest_airports.py`, à utiliser comme modèle).
 """
 
@@ -117,8 +117,32 @@ def ingest_silver(day: date = None, init: bool = False):
 
 
 def ingest_gold():
-    # TODO : reconstruire la/les table(s) de gold avec les données passengers à partir de silver_passengers
-    raise NotImplementedError
+    """Calcule l'âge révolu à la fin de la simulation et sa tranche."""
+    con = get_connection()
+    try:
+        con.execute("""
+            CREATE OR REPLACE TABLE dim_passenger AS
+            WITH aged AS (
+                SELECT *, DATE '2025-09-30' AS age_reference_date,
+                       CASE
+                           WHEN birth_date IS NULL OR birth_date > DATE '2025-09-30'
+                               THEN NULL
+                           ELSE CAST(date_part('year', age(DATE '2025-09-30', birth_date))
+                                     AS INTEGER)
+                       END AS age_years
+                FROM silver_passengers
+            )
+            SELECT *, CASE
+                WHEN age_years IS NULL THEN 'Unknown'
+                WHEN age_years < 18 THEN '0–17'
+                WHEN age_years < 35 THEN '18–34'
+                WHEN age_years < 55 THEN '35–54'
+                ELSE '55+'
+            END AS age_group
+            FROM aged
+        """)
+    finally:
+        con.close()
 
 
 def init():
