@@ -59,3 +59,17 @@ def validate_key(df: pd.DataFrame, key: str):
         raise ValueError(f"La clé {key} contient des valeurs absentes.")
     if df[key].duplicated().any():
         raise ValueError(f"La clé {key} contient des doublons.")
+
+
+def strip_spaces(df: pd.DataFrame) -> pd.DataFrame:
+    """Retire les espaces en début et fin de texte (noms de colonnes et valeurs). """
+    df = df.copy()
+    df.columns = df.columns.str.strip()
+    for column in df.columns:
+        if (pd.api.types.is_string_dtype(df[column].dtype)
+                or pd.api.types.is_object_dtype(df[column].dtype)):
+            stripped = df[column].map(
+                lambda value: value.strip() if isinstance(value, str) else value
+            )
+            df[column] = stripped.mask(stripped == "")
+    return df

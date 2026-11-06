@@ -41,6 +41,8 @@ Les passagers doivent être harmonisés en Silver : `id_passager` → `passenger
 `date_inscription` → `signup_date`. `email` existe dans les deux sources.
 Les dates FR sont au format `DD/MM/YYYY`, les dates EN au format `YYYY-MM-DD`.
 Les valeurs `Homme`/`Femme` sont normalisées en `Male`/`Female` avant union.
+Une colonne `source` (`EN` ou `FR`) conserve le système d’origine de chaque
+passager en Silver et en Gold, pour la traçabilité après consolidation.
 
 ## Modèle et chargement
 
@@ -79,6 +81,7 @@ erDiagram
     }
     dim_passenger {
         string passenger_id PK
+        string source "EN ou FR"
         date birth_date
         date age_reference_date
         int age_years
@@ -142,6 +145,23 @@ n'existent plus dans l'état courant sont supprimés. La référence `dim_curren
 porte également ces deux timestamps, initialisés à sa création ; les taux
 fournis restent inchangés.
 
+## Architecture médaillon : vue d'ensemble
+
+Le pipeline suit l'architecture médaillon vue en cours (Raw = Bronze,
+Consolidated = Silver, Aggregated = Gold). Chaque couche ne lit que ce que la
+précédente a persisté : le Silver peut toujours être reconstruit depuis le Bronze,
+et le Gold depuis le Silver.
+
+| | Bronze | Silver | Gold |
+| --- | --- | --- | --- |
+| **Question** | Qu'a-t-on reçu ? | Quel est l'état propre et actuel ? | Que veut savoir le métier ? |
+| **Stockage** | Fichiers CSV dans `bronze/` | Tables `silver_*` dans DuckDB | Tables `dim_*`, `fact_booking`, `agg_booking_daily_airline` |
+| **Fonction** | `ingest_bronze` (via `fetch_csv`) | `ingest_silver` | `ingest_gold` |
+| **Transformation** | Aucune : copie à l'identique | Nettoyage (`strip_spaces`), fusion EN/FR, typage, colonne `source` | Calculs (âge, durée de vol, `amount_eur`), agrégation, contrôles d'intégrité |
+| **Chargement** | Téléchargé une fois, puis relu depuis le cache | Incrémental : upsert des dimensions, soft delete, insert des réservations | Dimensions et fait reconstruits ; agrégation synchronisée par clé |
+| **Utilisateurs** | Rejeu, audit | Data engineers | Analystes, tableaux de bord |
+
+
 ## Couche Bronze et exécution
 
 ```bash
@@ -182,6 +202,11 @@ Cette commande charge l'initialisation puis les 30 jours dans `warehouse.duckdb`
 uniquement à partir des fichiers locaux. Elle n'appelle ni Bronze, ni Gold, ni
 l'initialisation de `dim_currency`. Un CSV absent provoque une erreur : il faut
 alors exécuter Bronze avant de relancer Silver.
+
+**Nettoyage des espaces :** chaque entité Silver applique `strip_spaces` aux
+noms de colonnes et aux valeurs texte avant typage, validation des clés et
+normalisation FR. Les textes vides après nettoyage deviennent des valeurs
+manquantes. Les fichiers Bronze restent inchangés.
 
 - `silver_airports`, `silver_flights` et `silver_passengers` conservent toutes les
   clés rencontrées avec leur état actif/inactif. Une désactivation déjà enregistrée
@@ -282,3 +307,38 @@ et pandas 3.0.6. Les fonctions temporelles suivent la
 - Les clés des dimensions et du fait Gold sont héritées logiquement des clés
   uniques Silver ; les reconstructions ne créent pas de contraintes SQL de clé
   étrangère. Le chargement du fait contrôle ses références avant écriture.
+
+La colonne passager `source` est ajoutée automatiquement aux entrepôts existants.
+Après mise à jour du code, rejouer tout Silver depuis Bronze puis Gold pour
+renseigner aussi la provenance des passagers inactifs. Aucune suppression de
+l’entrepôt n’est nécessaire. `strip_spaces` conserve les espaces internes.
+
+
+## Validation de l’intégration des modifications de Zoé — 6 novembre 2026
+
+Les modifications de l’archive `projet_data_fichiers_modifs.zip` ont été comparées
+au dépôt à jour (`14e55e5`), puis intégrées : provenance passager `source`,
+nettoyage Silver et documentation. Les fichiers générés présents dans l’archive
+(`__pycache__`, entrepôt) ne font pas partie du code intégré.
+
+Validation avec Python 3.13.18, pandas 3.0.6 et DuckDB 1.5.5 :
+
+- Pipeline complet depuis un entrepôt vierge et rejeu complet sans réseau :
+  38 930 réservations et 13 816 124,3440 EUR, sans duplication ni modification
+  des timestamps d’insertion ; les réservations conservent aussi leurs timestamps
+  de mise à jour.
+- 2 221 passagers avec provenance renseignée : 1 124 EN et 1 097 FR, dont
+  respectivement 5 et 2 inactifs.
+- Migration d’une copie de l’ancien entrepôt, sans colonne `source` : les neuf
+  tables métier Silver/Gold ont les mêmes valeurs que le chargement vierge,
+  et les timestamps de première insertion des passagers sont conservés.
+- Les 155 CSV Bronze conservent leurs empreintes SHA-256.
+- Cinq CSV initiaux avec espaces ajoutés aux en-têtes et aux valeurs (clés et
+  dates incluses) sont chargés correctement jusqu’en Gold. Le nettoyage conserve
+  les nombres, les valeurs manquantes et les espaces internes ; les clés devenues
+  identiques après nettoyage sont refusées.
+
+Le cœur du sujet est couvert, diagramme inclus. Les bonus Dagster et SCD2
+restent facultatifs et non réalisés. Avant le dépôt du rendu, committer les
+modifications et remettre le dépôt selon les modalités du cours, sans données
+ni entrepôt générés. Échéance indiquée dans le sujet : 29 novembre à 23 h 59.

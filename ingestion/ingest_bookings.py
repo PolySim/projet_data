@@ -5,7 +5,7 @@ Ingestion de l'entité `bookings` en Bronze, Silver et Gold
 
 from datetime import date
 
-from common import fetch_csv, get_connection, read_bronze_csv, validate_key
+from common import fetch_csv, get_connection, read_bronze_csv, validate_key, strip_spaces
 
 
 def ingest_bronze(day: date = None, init: bool = False):
@@ -38,7 +38,7 @@ def create_silver_table(con):
 
 def ingest_silver(day: date = None, init: bool = False):
     """Ajoute les événements du jour ; un rejeu conserve les réservations connues."""
-    df = read_bronze_csv("bookings", day, init)
+    df = strip_spaces(read_bronze_csv("bookings", day, init))
     validate_key(df, "booking_id")
     con = get_connection()
     try:

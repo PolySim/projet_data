@@ -5,7 +5,7 @@ Ingestion de l'entité `flights` en Bronze, Silver et Gold
 
 from datetime import date
 
-from common import fetch_csv, get_connection, read_bronze_csv, validate_key
+from common import fetch_csv, get_connection, read_bronze_csv, validate_key, strip_spaces
 
 FLIGHT_COLS = [
     "flight_number",
@@ -51,7 +51,7 @@ def create_silver_table(con):
 
 def ingest_silver(day: date = None, init: bool = False):
     """Upsert du snapshot complet, puis désactivation des vols disparus."""
-    df = read_bronze_csv("flights", day, init)
+    df = strip_spaces(read_bronze_csv("flights", day, init))
     validate_key(df, "flight_id")
     snapshot_date = date(2025, 8, 31) if init else day
     set_clause = ", ".join(f"{c} = excluded.{c}" for c in FLIGHT_COLS)

@@ -11,7 +11,7 @@ directement d'un objet Python de l'étape d'avant.
 
 from datetime import date
 
-from common import fetch_csv, get_connection, read_bronze_csv, validate_key
+from common import fetch_csv, get_connection, read_bronze_csv, validate_key, strip_spaces
 
 AIRPORT_COLS = ["iata_code", "airport_name", "city", "country"]
 
@@ -54,7 +54,7 @@ def create_silver_table(con):
 
 def ingest_silver(day: date | None = None, init: bool = False):
     """Relit le snapshot depuis bronze/ et l'upsert dans silver_airports."""
-    df = read_bronze_csv("airports", day, init)
+    df = strip_spaces(read_bronze_csv("airports", day, init))
     validate_key(df, "airport_id")
     snapshot_date = date(2025, 8, 31) if init else day
 

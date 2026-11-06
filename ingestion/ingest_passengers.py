@@ -6,7 +6,7 @@ Ingestion de l'entité `passengers` en Bronze, Silver et Gold
 from datetime import date
 
 import pandas as pd
-from common import fetch_csv, get_connection, read_bronze_csv, validate_key
+from common import fetch_csv, get_connection, read_bronze_csv, strip_spaces, validate_key
 
 PASSENGER_COLS = [
     "first_name",
@@ -16,6 +16,7 @@ PASSENGER_COLS = [
     "email",
     "birth_date",
     "signup_date",
+    "source",
 ]
 FR_COLUMNS = {
     "id_passager": "passenger_id",
@@ -50,19 +51,24 @@ def create_silver_table(con):
             email VARCHAR,
             birth_date DATE,
             signup_date DATE,
+            source VARCHAR,
             is_active BOOLEAN,
             deleted_date DATE,
             insert_timestamp TIMESTAMP,
             update_timestamp TIMESTAMP
         )
     """)
+    # Rend les entrepôts créés avant l’ajout de la provenance rejouables.
+    con.execute("ALTER TABLE silver_passengers ADD COLUMN IF NOT EXISTS source VARCHAR")
 
 
 def ingest_silver(day: date = None, init: bool = False):
     """Consolide EN/FR avant l'upsert et la recherche des passagers absents."""
     frames = []
     for language, date_format in (("en", "%Y-%m-%d"), ("fr", "%d/%m/%Y")):
-        frame = read_bronze_csv(f"passengers_{language}", day, init)
+        # Nettoyage des espaces (common.strip_spaces), puis CRM d'origine.
+        frame = strip_spaces(read_bronze_csv(f"passengers_{language}", day, init))
+        frame["source"] = language.upper()
         if language == "fr":
             frame = frame.rename(columns=FR_COLUMNS)
             frame["gender"] = frame["gender"].replace(
